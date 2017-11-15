@@ -6,9 +6,9 @@
 'use strict';
 
 import * as vscode from 'vscode';
+import { AzureExplorer, IAzureNode, IAzureParentNode, UserCancelledError } from 'vscode-azureui';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { AzureAccount } from './azure-account.api';
-import { AzureFunctionsExplorer } from './AzureFunctionsExplorer';
 import { createFunction } from './commands/createFunction';
 import { createFunctionApp } from './commands/createFunctionApp';
 import { createNewProject } from './commands/createNewProject';
@@ -19,11 +19,9 @@ import { restartFunctionApp } from './commands/restartFunctionApp';
 import { startFunctionApp } from './commands/startFunctionApp';
 import { stopFunctionApp } from './commands/stopFunctionApp';
 import { ErrorData } from './ErrorData';
-import * as errors from './errors';
+import { FunctionAppProvider } from './explorer/FunctionAppProvider';
+import { FunctionAppTreeItem } from './explorer/FunctionAppTreeItem';
 import { localize } from './localize';
-import { FunctionAppNode } from './nodes/FunctionAppNode';
-import { NodeBase } from './nodes/NodeBase';
-import { SubscriptionNode } from "./nodes/SubscriptionNode";
 import { TemplateData } from './templates/TemplateData';
 
 let reporter: TelemetryReporter | undefined;
@@ -45,24 +43,23 @@ export function activate(context: vscode.ExtensionContext): void {
         const outputChannel: vscode.OutputChannel = vscode.window.createOutputChannel('Azure Functions');
         context.subscriptions.push(outputChannel);
 
-        const explorer: AzureFunctionsExplorer = new AzureFunctionsExplorer(context.globalState, outputChannel, azureAccount);
+        const explorer: AzureExplorer = new AzureExplorer(new FunctionAppProvider(context.globalState, outputChannel), 'azureFunctions.loadMore');
+        context.subscriptions.push(explorer);
         context.subscriptions.push(vscode.window.registerTreeDataProvider('azureFunctionsExplorer', explorer));
-
-        context.subscriptions.push(azureAccount.onFiltersChanged(() => explorer.refresh()));
-        context.subscriptions.push(azureAccount.onStatusChanged(() => explorer.refresh()));
 
         const templateData: TemplateData = new TemplateData(context.globalState);
 
-        initCommand<NodeBase>(context, outputChannel, 'azureFunctions.refresh', (node?: NodeBase) => explorer.refresh(node));
-        initCommand<NodeBase>(context, outputChannel, 'azureFunctions.openInPortal', async (node?: NodeBase) => await openInPortal(explorer, node));
-        initAsyncCommand<NodeBase>(context, outputChannel, 'azureFunctions.createFunction', async () => await createFunction(outputChannel, azureAccount, templateData));
-        initAsyncCommand<NodeBase>(context, outputChannel, 'azureFunctions.createNewProject', async () => await createNewProject(outputChannel));
-        initAsyncCommand<SubscriptionNode>(context, outputChannel, 'azureFunctions.createFunctionApp', async (node?: SubscriptionNode) => await createFunctionApp(context, outputChannel, explorer, node));
-        initAsyncCommand<NodeBase>(context, outputChannel, 'azureFunctions.startFunctionApp', async (node?: FunctionAppNode) => await startFunctionApp(explorer, node));
-        initAsyncCommand<NodeBase>(context, outputChannel, 'azureFunctions.stopFunctionApp', async (node?: FunctionAppNode) => await stopFunctionApp(explorer, node));
-        initAsyncCommand<NodeBase>(context, outputChannel, 'azureFunctions.restartFunctionApp', async (node?: FunctionAppNode) => await restartFunctionApp(explorer, node));
-        initAsyncCommand<NodeBase>(context, outputChannel, 'azureFunctions.deleteFunctionApp', async (node?: FunctionAppNode) => await deleteFunctionApp(explorer, outputChannel, node));
-        initAsyncCommand<FunctionAppNode | vscode.Uri>(context, outputChannel, 'azureFunctions.deploy', async (arg?: FunctionAppNode | vscode.Uri) => await deploy(explorer, outputChannel, arg));
+        initCommand<IAzureNode>(context, outputChannel, 'azureFunctions.refresh', (node?: IAzureNode) => explorer.refresh(node));
+        initAsyncCommand<IAzureNode>(context, outputChannel, 'azureFunctions.loadMore', async (node: IAzureNode) => await explorer.loadMore(node));
+        initCommand<IAzureNode<FunctionAppTreeItem>>(context, outputChannel, 'azureFunctions.openInPortal', async (node?: IAzureNode<FunctionAppTreeItem>) => await openInPortal(explorer, node));
+        initAsyncCommand<IAzureNode>(context, outputChannel, 'azureFunctions.createFunction', async () => await createFunction(outputChannel, azureAccount, templateData));
+        initAsyncCommand<IAzureNode>(context, outputChannel, 'azureFunctions.createNewProject', async () => await createNewProject(outputChannel));
+        initAsyncCommand<IAzureParentNode>(context, outputChannel, 'azureFunctions.createFunctionApp', async (node?: IAzureParentNode) => await createFunctionApp(explorer, node));
+        initAsyncCommand<IAzureNode<FunctionAppTreeItem>>(context, outputChannel, 'azureFunctions.startFunctionApp', async (node?: IAzureNode<FunctionAppTreeItem>) => await startFunctionApp(explorer, node));
+        initAsyncCommand<IAzureNode<FunctionAppTreeItem>>(context, outputChannel, 'azureFunctions.stopFunctionApp', async (node?: IAzureNode<FunctionAppTreeItem>) => await stopFunctionApp(explorer, node));
+        initAsyncCommand<IAzureNode<FunctionAppTreeItem>>(context, outputChannel, 'azureFunctions.restartFunctionApp', async (node?: IAzureNode<FunctionAppTreeItem>) => await restartFunctionApp(explorer, node));
+        initAsyncCommand<IAzureParentNode>(context, outputChannel, 'azureFunctions.deleteFunctionApp', async (node?: IAzureParentNode) => await deleteFunctionApp(explorer, node));
+        initAsyncCommand<IAzureNode<FunctionAppTreeItem> | vscode.Uri>(context, outputChannel, 'azureFunctions.deploy', async (arg?: IAzureNode<FunctionAppTreeItem> | vscode.Uri) => await deploy(explorer, outputChannel, arg));
     }
 }
 
@@ -87,7 +84,7 @@ function initAsyncCommand<T>(extensionContext: vscode.ExtensionContext, outputCh
                 await callback(<T>args[0]);
             }
         } catch (error) {
-            if (error instanceof errors.UserCancelledError) {
+            if (error instanceof UserCancelledError) {
                 result = 'Canceled';
             } else {
                 result = 'Failed';

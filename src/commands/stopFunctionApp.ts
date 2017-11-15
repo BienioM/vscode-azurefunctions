@@ -5,16 +5,16 @@
 
 // tslint:disable-next-line:no-require-imports
 import WebSiteManagementClient = require('azure-arm-website');
-import { AzureFunctionsExplorer } from '../AzureFunctionsExplorer';
-import { FunctionAppNode } from '../nodes/FunctionAppNode';
-import { getWebSiteClient } from '../nodes/SubscriptionNode';
+import { AzureExplorer, IAzureNode } from 'vscode-azureui';
+import { FunctionAppTreeItem } from '../explorer/FunctionAppTreeItem';
+import { nodeUtils } from '../utils/nodeUtils';
 
-export async function stopFunctionApp(explorer: AzureFunctionsExplorer, node?: FunctionAppNode): Promise<void> {
+export async function stopFunctionApp(explorer: AzureExplorer, node?: IAzureNode<FunctionAppTreeItem>): Promise<void> {
     if (!node) {
-        node = <FunctionAppNode>(await explorer.showNodePicker(FunctionAppNode.contextValue));
+        node = <IAzureNode<FunctionAppTreeItem>>await explorer.showNodePicker(FunctionAppTreeItem.contextValue);
     }
 
-    const client: WebSiteManagementClient = getWebSiteClient(node);
-    await node.siteWrapper.stop(client);
+    const client: WebSiteManagementClient = nodeUtils.getWebSiteClient(node);
+    await node.treeItem.siteWrapper.stop(client);
     explorer.refresh(node.parent);
 }

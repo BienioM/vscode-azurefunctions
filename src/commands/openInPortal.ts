@@ -3,16 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as opn from 'opn';
-import { AzureFunctionsExplorer } from '../AzureFunctionsExplorer';
-import { FunctionAppNode } from '../nodes/FunctionAppNode';
-import { NodeBase } from '../nodes/NodeBase';
-import { getTenantId } from '../nodes/SubscriptionNode';
+import { AzureExplorer, IAzureNode } from 'vscode-azureui';
+import { FunctionAppTreeItem } from '../explorer/FunctionAppTreeItem';
 
-export async function openInPortal(explorer: AzureFunctionsExplorer, node?: NodeBase): Promise<void> {
+export async function openInPortal(explorer: AzureExplorer, node?: IAzureNode<FunctionAppTreeItem>): Promise<void> {
     if (!node) {
-        node = <FunctionAppNode>(await explorer.showNodePicker(FunctionAppNode.contextValue));
+        node = <IAzureNode<FunctionAppTreeItem>>await explorer.showNodePicker(FunctionAppTreeItem.contextValue);
     }
 
-    (<(s: string) => void>opn)(`https://portal.azure.com/${getTenantId(node)}/#resource${node.id}`);
+    node.openInPortal();
 }
